@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>GestEdu - Gestion Pédagogique</title>
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Roboto, system-ui, sans-serif; }
+        body { background: #f0f7ff; margin: 0; padding: 20px; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .connection-status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 9999;
+            background: white;
+            padding: 8px 16px;
+            border-radius: 40px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .led { width: 12px; height: 12px; border-radius: 50%; animation: pulse 1.5s infinite; }
+        .led.orange { background-color: #f39c12; box-shadow: 0 0 5px #f39c12; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        .splash-screen { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #0a2b44 0%, #1e3c72 100%);
+            display: flex; align-items: center; justify-content: center; z-index: 1000;
+            transition: opacity 0.5s ease;
+        }
+        .splash-content { text-align: center; color: white; padding: 20px; }
+        .splash-title { font-size: 2.5rem; font-weight: 800; margin-bottom: 10px; }
+        .splash-subtitle { font-size: 3.5rem; font-weight: 900; margin: 20px 0; background: linear-gradient(135deg, #f9c74f, #f9844a); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .splash-year { font-size: 1.5rem; margin-bottom: 40px; }
+        .enter-btn { background: #f9c74f; border: none; padding: 15px 40px; font-size: 1.3rem; font-weight: bold; color: #1e3c72; border-radius: 50px; cursor: pointer; transition: transform 0.2s; }
+        .enter-btn:hover { transform: scale(1.05); }
+        .loader-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10, 43, 68, 0.95); display: flex; align-items: center; justify-content: center;
+            z-index: 2000; opacity: 0; visibility: hidden; transition: opacity 0.3s ease;
+        }
+        .loader-overlay.active { opacity: 1; visibility: visible; }
+        .engine-loader { text-align: center; color: white; }
+        .engine { position: relative; width: 120px; height: 120px; margin: 0 auto 30px; }
+        .engine-wheel { position: absolute; width: 100%; height: 100%; border: 6px solid rgba(249, 199, 79, 0.3); border-top: 6px solid #f9c74f; border-right: 6px solid #f9844a; border-radius: 50%; animation: spin 1s linear infinite; }
+        .engine-wheel:nth-child(2) { width: 70%; height: 70%; top: 15%; left: 15%; border: 5px solid rgba(249, 199, 79, 0.3); border-bottom: 5px solid #f9c74f; border-left: 5px solid #f9844a; animation: spin-reverse 0.8s linear infinite; }
+        .engine-wheel:nth-child(3) { width: 40%; height: 40%; top: 30%; left: 30%; border: 4px solid rgba(249, 199, 79, 0.3); border-top: 4px solid #f9844a; border-right: 4px solid #f9c74f; animation: spin 0.6s linear infinite; }
+        .engine-core { position: absolute; width: 20%; height: 20%; background: #f9c74f; border-radius: 50%; top: 40%; left: 40%; animation: pulseCore 1s ease-in-out infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes spin-reverse { 0% { transform: rotate(0deg); } 100% { transform: rotate(-360deg); } }
+        @keyframes pulseCore { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.2); opacity: 0.8; } }
+        .loader-text { font-size: 1.5rem; font-weight: 600; margin-top: 20px; letter-spacing: 2px; }
+        .loader-subtext { font-size: 0.9rem; margin-top: 10px; opacity: 0.8; }
+        .app-container { max-width: 1400px; margin: 0 auto; background: white; border-radius: 32px; box-shadow: 0 20px 35px -12px rgba(0,0,0,0.15); overflow: hidden; display: none; }
+        .tabs-header { display: flex; align-items: center; background: #2c5282; flex-wrap: wrap; }
+        .tabs { display: flex; flex-wrap: wrap; flex: 1; gap: 2px; }
+        .tab-btn { background: #2c5282; border: none; padding: 12px 14px; font-size: 0.85rem; font-weight: 600; cursor: pointer; color: white; transition: 0.2s; border-bottom: 3px solid transparent; }
+        .tab-btn.active { background: #0f2c4e; border-bottom-color: #f9c74f; }
+        .tab-btn:hover { background: #1f4a7a; }
+        .exit-btn { background: #c44c4c; color: white; border: none; padding: 12px 24px; font-size: 0.9rem; font-weight: bold; cursor: pointer; margin-left: auto; white-space: nowrap; }
+        .exit-btn:hover { background: #a13e3e; }
+        .panels { padding: 28px 24px; background: #ffffff; }
+        .panel { display: none; animation: fade 0.2s ease; }
+        .panel.active-panel { display: block; }
+        @keyframes fade { from { opacity: 0; transform: translateY(6px);} to { opacity: 1; transform: translateY(0);} }
+        .sub-tabs { display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 2px solid #e2edf7; padding-bottom: 8px; flex-wrap: wrap; }
+        .sub-tab-btn { background: none; border: none; padding: 8px 20px; font-size: 0.9rem; font-weight: 600; cursor: pointer; color: #4a5568; border-radius: 40px; transition: 0.2s; }
+        .sub-tab-btn.active { background: #1e3c72; color: white; }
+        .sub-panel { display: none; }
+        .sub-panel.active-sub { display: block; }
+        .platform-title { font-size: 2rem; font-weight: 800; color: #0a2b44; text-align: center; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 4px solid #f9c74f; width: 100%; }
+        .card { background: #f8fafc; border-radius: 24px; padding: 20px; margin-bottom: 28px; border: 1px solid #e2edf7; }
+        .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+        input, select, textarea, button { border-radius: 40px; padding: 10px 16px; border: 1px solid #cbd5e1; font-size: 0.9rem; }
+        button { background: #1e3c72; color: white; border: none; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; justify-content: center; transition: 0.2s; }
+        button:hover { opacity: 0.85; transform: scale(0.98); }
+        .btn-success { background: #2e7d32; }
+        .btn-warning { background: #e67e22; }
+        .btn-danger { background: #c44c4c; }
+        .btn-secondary { background: #4b6f8e; }
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 20px; overflow: auto; }
+        th, td { text-align: left; padding: 12px 8px; border-bottom: 1px solid #e2edf7; border: 1px solid #ddd; }
+        .badge { background: #e2edf7; padding: 4px 12px; border-radius: 40px; font-size: 0.8rem; display: inline-block; margin: 3px; }
+        .flex-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+        .class-group { margin-bottom: 30px; border: 1px solid #e2edf7; border-radius: 16px; overflow: hidden; }
+        .class-header { background: #1e3c72; color: white; padding: 12px 16px; font-weight: bold; font-size: 1.1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .student-photo { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; background: #e2edf7; }
+        .grade-input { width: 80px; padding: 4px; text-align: center; }
+        .coef-input { width: 60px; padding: 4px; text-align: center; }
+        .report-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .report-table th, .report-table td { border: 1px solid #ccc; padding: 8px; text-align: left; vertical-align: top; }
+        @media print { 
+            .tabs-header, .sub-tabs, .promo-bar, button, .splash-screen, .loader-overlay, .connection-status { display: none; } 
+            .panel { display: block !important; } 
+            body { background: white; padding: 0; margin: 0; }
+            .app-container { box-shadow: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status" id="connectionStatus">
+        <div class="led orange" id="connectionLed"></div>
+        <span id="connectionText">Mode local</span>
+    </div>
+    <div class="splash-screen" id="splashScreen">
+        <div class="splash-content">
+            <div class="splash-title">🏫 ÉCOLE DE LA N'SELE</div>
+            <div class="splash-subtitle">GESTION PÉDAGOGIQUE</div>
+            <div class="splash-year">Année scolaire 2026-2027</div>
+            <button class="enter-btn" id="enterAppBtn">MIAC PLUS</button>
+        </div>
+    </div>
+    <div class="loader-overlay" id="loaderOverlay">
+        <div class="engine-loader">
+            <div class="engine"><div class="engine-wheel"></div><div class="engine-wheel"></div><div class="engine-wheel"></div><div class="engine-core"></div></div>
+            <div class="loader-text">CHARGEMENT SYSTÈME</div>
+            <div class="loader-subtext">⚙️ Initialisation du module PÉDAGOGIQUE ⚙️</div>
+        </div>
+    </div>
+    <div class="modal" id="receiptModal"><div class="modal-content" id="receiptContent"></div></div>
+    <div class="app-container" id="appContainer">
+        <div class="tabs-header">
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="tab3">📚 GESTION PÉDAGOGIQUE</button>
+            </div>
+            <button class="exit-btn" id="exitAppBtn">MIAC EXIT</button>
+        </div>
+        <div class="panels">
+            <div class="panel active-panel" id="tab3Panel">
+                <div class="platform-title">📚 GESTION PÉDAGOGIQUE</div>
+                <div class="sub-tabs">
+                    <button class="sub-tab-btn active" data-sub="cotation-saisie">✏️ Saisie notes</button>
+                    <button class="sub-tab-btn" data-sub="cotation-synthese">📈 Synthèse détaillée</button>
+                    <button class="sub-tab-btn" data-sub="archives-rapports">📦 Archives rapports</button>
+                    <button class="sub-tab-btn" data-sub="resultats-publication">📜 Résultats</button>
+                    <button class="sub-tab-btn" data-sub="liste-eleves">📋 Liste des élèves</button>
+                    <button class="sub-tab-btn" data-sub="liste-personnel">👥 Liste du personnel</button>
+                </div>
+                
+                <!-- SAISIE NOTES avec bouton de validation -->
+                <div id="cotation-saisie" class="sub-panel active-sub">
+                    <div class="card">
+                        <h3>Saisie des notes</h3>
+                        <div class="grid-2">
+                            <select id="gradeClassSelect"></select>
+                            <select id="gradePeriodSelect">
+                                <option value="interro1">📝 1ère interrogation</option>
+                                <option value="interro2">📝 2ème interrogation</option>
+                                <option value="examen1">📘 Examen 1er trimestre</option>
+                                <option value="interro3">📝 3ème interrogation</option>
+                                <option value="examen2">📘 Examen 2ème trimestre</option>
+                                <option value="examenFin">🎓 Examen fin d'année</option>
+                            </select>
+                            <button id="loadGradeTableBtn" class="btn-secondary">📋 Charger la classe</button>
+                        </div>
+                        <div id="courseManagement">
+                            <h4>Gestion des cours & coefficients</h4>
+                            <div id="coursesList"></div>
+                            <div class="grid-2">
+                                <input type="text" id="newCourseName" placeholder="Nom du cours">
+                                <input type="number" id="newCourseMax" placeholder="Note max (ex: 20)" value="20">
+                                <input type="number" id="newCourseCoef" placeholder="Coefficient (ex: 2)" value="1">
+                                <button id="addCourseBtn" class="btn-secondary">➕ Ajouter un cours</button>
+                            </div>
+                        </div>
+                        <div id="gradeTableContainer"></div>
+                        <div class="flex-between" style="margin-top: 15px;">
+                            <button id="validateGradesBtn" class="btn-success">✅ Valider les notes</button>
+                            <button id="archiveCurrentPeriodBtn" class="btn-warning">📦 Archiver cette période</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- SYNTHÈSE DÉTAILLÉE (avec tous les cours et notes par élève) -->
+                <div id="cotation-synthese" class="sub-panel">
+                    <div class="card">
+                        <div class="flex-between"><h3>Synthèse détaillée des résultats</h3><button id="printFullSynthBtn" class="btn-secondary">🖨️ Imprimer</button></div>
+                        <div class="grid-2">
+                            <select id="synthPeriodSelect">
+                                <option value="interro1">📝 1ère interrogation</option>
+                                <option value="interro2">📝 2ème interrogation</option>
+                                <option value="examen1">📘 Examen 1er trimestre</option>
+                                <option value="interro3">📝 3ème interrogation</option>
+                                <option value="examen2">📘 Examen 2ème trimestre</option>
+                                <option value="examenFin">🎓 Examen fin d'année</option>
+                            </select>
+                            <button id="showFullSynthBtn" class="btn-secondary">Afficher la synthèse</button>
+                        </div>
+                        <div id="fullSynthResultArea"></div>
+                    </div>
+                </div>
+                
+                <!-- ARCHIVES DES RAPPORTS (tableau professionnel) -->
+                <div id="archives-rapports" class="sub-panel">
+                    <div class="card">
+                        <div class="flex-between"><h3>📦 Archives des rapports</h3><button id="clearAllReportsBtn" class="btn-danger">🗑️ Tout vider</button></div>
+                        <div id="reportsArchiveList"></div>
+                    </div>
+                </div>
+                
+                <!-- PUBLICATION RÉSULTATS -->
+                <div id="resultats-publication" class="sub-panel">
+                    <div class="card">
+                        <div class="flex-between"><h3>Publication des résultats</h3><button id="printResultsBtn" class="btn-secondary">🖨️ Imprimer</button></div>
+                        <select id="resultClassSelect"></select>
+                        <select id="resultPeriodSelect">
+                            <option value="interro1">1ère interrogation</option>
+                            <option value="interro2">2ème interrogation</option>
+                            <option value="examen1">Examen 1er trimestre</option>
+                            <option value="interro3">3ème interrogation</option>
+                            <option value="examen2">Examen 2ème trimestre</option>
+                            <option value="examenFin">Examen fin d'année</option>
+                        </select>
+                        <button id="showResultsBtn" class="btn-secondary">Afficher</button>
+                        <div id="resultsDisplayArea"></div>
+                    </div>
+                </div>
+                
+                <!-- LISTE ÉLÈVES -->
+                <div id="liste-eleves" class="sub-panel">
+                    <div class="card">
+                        <div class="flex-between"><h3>📋 Liste des élèves par classe</h3><div><button id="printAllClassesBtn" class="btn-secondary">🖨️ Tout imprimer</button><button id="openAddStudentModalBtn" class="btn-success">➕ Inscrire</button></div></div>
+                        <div id="groupedStudentList"></div>
+                        <div id="totalGeneralEffectif"></div>
+                    </div>
+                </div>
+                
+                <!-- LISTE PERSONNEL -->
+                <div id="liste-personnel" class="sub-panel">
+                    <div class="card">
+                        <div class="flex-between"><h3>👥 Personnel</h3><button id="openAddStaffBtn" class="btn-success">+ Ajouter</button></div>
+                        <div id="addStaffForm" style="display:none;" class="grid-2">
+                            <input type="text" id="staffName" placeholder="Nom complet">
+                            <select id="staffCategory"><option value="enseignant">Enseignant</option><option value="administratif">Administratif</option><option value="autre">Autre</option></select>
+                            <input type="text" id="staffRole" placeholder="Fonction">
+                            <input type="tel" id="staffPhone" placeholder="Téléphone">
+                            <input type="number" id="staffSalary" placeholder="Salaire (USD)">
+                            <button id="saveStaffBtn" class="btn-success">💾 Enregistrer</button>
+                            <button id="cancelStaffBtn" class="btn-secondary">Annuler</button>
+                        </div>
+                        <div id="staffListContainer"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="promo-bar" style="background:#fef9e3; border-radius:60px; padding:8px 16px; margin:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
+            <div style="display:flex; gap:10px; align-items:center;">
+                <span>📱 WhatsApp Promoteur :</span>
+                <input type="tel" id="promoteurWhatsApp" placeholder="+243XXXXXXXXX" style="width:200px;">
+                <button id="savePromoteurBtn" class="btn-secondary">💾 Enregistrer</button>
+            </div>
+            <button id="manualDailyReportBtn" class="btn-warning">📨 Envoyer rapport journalier maintenant</button>
+        </div>
+    </div>
+
+    <script>
+        // ==================== LISTE DES CLASSES ====================
+        const classList = ["1e Maternelle","2e Maternelle","3e Maternelle","1er Primaire","2e Primaire","3e Primaire","4e Primaire","5e Primaire","6e Primaire"];
+        
+        // Données persistantes
+        let students = JSON.parse(localStorage.getItem('school_students')) || [];
+        let grades = JSON.parse(localStorage.getItem('school_grades')) || [];      // stocke {studentId, period, courseName, score, max, coef}
+        let courses = JSON.parse(localStorage.getItem('courses')) || [];
+        let staffMembers = JSON.parse(localStorage.getItem('staffMembers')) || [];
+        let reportsArchive = JSON.parse(localStorage.getItem('reportsArchive')) || [];
+        let promoteurPhone = localStorage.getItem('promoteurPhone') || "";
+        
+        function saveAll() { 
+            localStorage.setItem('school_students', JSON.stringify(students)); 
+            localStorage.setItem('school_grades', JSON.stringify(grades)); 
+            localStorage.setItem('courses', JSON.stringify(courses)); 
+            localStorage.setItem('staffMembers', JSON.stringify(staffMembers));
+            localStorage.setItem('reportsArchive', JSON.stringify(reportsArchive));
+            localStorage.setItem('promoteurPhone', promoteurPhone);
+        }
+        
+        function showLoader() { document.getElementById('loaderOverlay').classList.add('active'); setTimeout(() => hideLoader(), 800); }
+        function hideLoader() { document.getElementById('loaderOverlay').classList.remove('active'); }
+        
+        function sendWhatsApp(phone, msg) { 
+            if(!phone) { alert("Numéro manquant"); return; } 
+            let clean = phone.replace(/\s+/g,''); 
+            if(!clean.startsWith('+')) clean='+'+clean; 
+            window.open(`https://wa.me/${clean}?text=${encodeURIComponent(msg)}`,'_blank'); 
+        }
+        
+        function printWithHeader(title, content) { 
+            const printWindow = window.open('', '_blank');
+            if (!printWindow) { alert("Autorisez les pop-ups pour l'impression."); return; }
+            printWindow.document.write(`
+                <!DOCTYPE html><html><head><title>${title}</title><meta charset="UTF-8">
+                <style>*{font-family:'Segoe UI',Arial,sans-serif;}body{padding:20px;}.print-header{text-align:center;margin-bottom:30px;}.print-header h1{color:#1e3c72;}.signature{margin-top:40px;text-align:right;border-top:1px solid #ccc;padding-top:20px;}table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ddd;padding:8px;}th{background:#1e3c72;color:white;}</style>
+                </head><body><div class="print-header"><h1>🏫 ÉCOLE DE LA N'SELE</h1><h3>${title}</h3><p>Date : ${new Date().toLocaleString('fr-FR')}</p></div>${content}<div class="signature">Signature : _________________</div><div style="text-align:center;margin-top:30px;"><button onclick="window.print();window.close();">🖨️ Imprimer</button></div></body></html>
+            `);
+            printWindow.document.close();
+        }
+        
+        // ==================== RENDER ====================
+        function renderAll() { 
+            renderClassSelectors();
+            renderGroupedStudentList(); 
+            renderCoursesList(); 
+            renderStaffList();
+            renderReportsArchive();
+        }
+        
+        function renderClassSelectors() {
+            let opts = `<option value="">-- Choisir une classe --</option>` + classList.map(c=>`<option>${c}</option>`).join('');
+            document.getElementById('gradeClassSelect').innerHTML = opts;
+            document.getElementById('resultClassSelect').innerHTML = opts;
+        }
+        
+        function renderCoursesList() { 
+            let container = document.getElementById('coursesList'); 
+            if(container) container.innerHTML = courses.map((c,idx)=>`<div class="badge">📖 ${c.name} (max:${c.max}, coef:${c.coef}) <button class="remove-course" data-idx="${idx}" style="padding:2px 8px; background:#c44c4c;">🗑️</button></div>`).join(''); 
+            document.querySelectorAll('.remove-course').forEach(btn=>btn.addEventListener('click',()=>{ courses.splice(btn.dataset.idx,1); saveAll(); renderCoursesList(); renderGradeTableIfLoaded(); })); 
+        }
+        
+        let currentLoadedClass = null;
+        let currentLoadedPeriod = null;
+        
+        function renderGradeTableIfLoaded() {
+            if(currentLoadedClass && currentLoadedPeriod) {
+                loadGradeTable(currentLoadedClass, currentLoadedPeriod);
+            }
+        }
+        
+        function loadGradeTable(className, period) {
+            let classStudents = students.filter(s => s.class === className);
+            if(classStudents.length === 0) {
+                document.getElementById('gradeTableContainer').innerHTML = `<p class="badge">Aucun élève dans cette classe</p>`;
+                return;
+            }
+            let html = `<h4>${className} - ${period}</h4><div style="overflow-x:auto;"><table border="1" style="min-width:600px;"><thead><tr><th>Élève</th>`;
+            for(let c of courses) {
+                html += `<th>${c.name}<br><small>max ${c.max} | coef ${c.coef}</small></th>`;
+            }
+            html += `<th>Moyenne pondérée<br><small>/20</small></th><th>%</th></tr></thead><tbody>`;
+            
+            for(let s of classStudents) {
+                html += `<tr><td><strong>${s.name}</strong></td>`;
+                let totalPoints = 0;
+                let totalCoef = 0;
+                for(let c of courses) {
+                    let grade = grades.find(g => g.studentId === s.id && g.period === period && g.courseName === c.name);
+                    let score = grade ? grade.score : '';
+                    let max = c.max;
+                    html += `<td><input type="number" class="grade-input" data-student="${s.id}" data-course="${c.name}" data-max="${max}" data-coef="${c.coef}" value="${score}" min="0" max="${max}" step="0.01" style="width:80px;"></td>`;
+                    let val = parseFloat(score);
+                    if(!isNaN(val) && val>=0 && val<=max) {
+                        let ramenee = (val / max) * 20;
+                        totalPoints += ramenee * c.coef;
+                        totalCoef += c.coef;
+                    }
+                }
+                let moyenne = totalCoef > 0 ? (totalPoints / totalCoef) : 0;
+                let pourcentage = (moyenne / 20) * 100;
+                html += `<td><strong>${moyenne.toFixed(2)}</strong></td><td>${pourcentage.toFixed(1)}%</td></tr>`;
+            }
+            html += `</tbody></table></div>`;
+            document.getElementById('gradeTableContainer').innerHTML = html;
+            
+            // Attacher événements de saisie (mais la validation se fait via le bouton)
+            document.querySelectorAll('.grade-input').forEach(inp => {
+                inp.addEventListener('change', function() {
+                    // On ne sauvegarde pas automatiquement, on attend la validation
+                    // On peut juste changer l'apparence pour indiquer une modification
+                    inp.style.backgroundColor = "#fff3cd";
+                });
+            });
+        }
+        
+        // Fonction de validation des notes
+        function validateAllGrades() {
+            if(!currentLoadedClass || !currentLoadedPeriod) {
+                alert("Veuillez d'abord charger une classe et une période.");
+                return;
+            }
+            let period = currentLoadedPeriod;
+            let saved = 0;
+            document.querySelectorAll('.grade-input').forEach(inp => {
+                let studentId = parseInt(inp.dataset.student);
+                let courseName = inp.dataset.course;
+                let max = parseFloat(inp.dataset.max);
+                let coef = parseFloat(inp.dataset.coef);
+                let score = parseFloat(inp.value);
+                if(!isNaN(score) && score>=0 && score<=max) {
+                    let idx = grades.findIndex(g => g.studentId === studentId && g.period === period && g.courseName === courseName);
+                    let gradeObj = { studentId, period, courseName, score, max, coef };
+                    if(idx>=0) grades[idx] = gradeObj;
+                    else grades.push(gradeObj);
+                    saved++;
+                    inp.style.backgroundColor = "";
+                } else if(inp.value !== "") {
+                    alert(`Note invalide pour ${courseName} : doit être entre 0 et ${max}`);
+                    inp.value = "";
+                }
+            });
+            saveAll();
+            alert(`${saved} notes validées et sauvegardées.`);
+            // Rafraîchir le tableau pour recalculer les moyennes
+            loadGradeTable(currentLoadedClass, currentLoadedPeriod);
+        }
+        
+        // Synthèse détaillée : tableau avec tous les cours et les notes de chaque élève
+        function renderFullSynthesis(period) {
+            let periodName = document.getElementById('synthPeriodSelect').options[document.getElementById('synthPeriodSelect').selectedIndex]?.text || period;
+            let html = `<h3>Synthèse détaillée - ${periodName}</h3>`;
+            for(let className of classList) {
+                let classStudents = students.filter(s => s.class === className);
+                if(classStudents.length === 0) continue;
+                html += `<div class="class-group"><div class="class-header">📚 ${className}</div>`;
+                html += `<table border="1" style="width:100%; border-collapse:collapse;"><thead><tr><th>Élève</th>`;
+                for(let c of courses) {
+                    html += `<th>${c.name}<br><small>(max ${c.max}, coef ${c.coef})</small></th>`;
+                }
+                html += `<th>Moyenne /20</th><th>%</th><th>Rang</th></tr></thead><tbody>`;
+                
+                let studentsData = [];
+                for(let s of classStudents) {
+                    let row = { name: s.name, notes: [], totalPoints: 0, totalCoef: 0 };
+                    for(let c of courses) {
+                        let grade = grades.find(g => g.studentId === s.id && g.period === period && g.courseName === c.name);
+                        let score = grade ? grade.score : '-';
+                        let noteValue = (score !== '-' && !isNaN(parseFloat(score))) ? parseFloat(score) : null;
+                        row.notes.push(score);
+                        if(noteValue !== null && noteValue >=0 && noteValue <= c.max) {
+                            let ramenee = (noteValue / c.max) * 20;
+                            row.totalPoints += ramenee * c.coef;
+                            row.totalCoef += c.coef;
+                        }
+                    }
+                    let moyenne = row.totalCoef > 0 ? (row.totalPoints / row.totalCoef) : 0;
+                    let pourcentage = (moyenne / 20) * 100;
+                    row.moyenne = moyenne;
+                    row.pourcentage = pourcentage;
+                    studentsData.push(row);
+                }
+                // Trier par pourcentage décroissant pour le rang
+                studentsData.sort((a,b) => b.pourcentage - a.pourcentage);
+                for(let idx=0; idx<studentsData.length; idx++) {
+                    let sd = studentsData[idx];
+                    html += `<tr><td><strong>${sd.name}</strong></td>`;
+                    for(let note of sd.notes) {
+                        html += `<td>${note}</td>`;
+                    }
+                    html += `<td><strong>${sd.moyenne.toFixed(2)}</strong></td>`;
+                    html += `<td>${sd.pourcentage.toFixed(1)}%</td>`;
+                    html += `<td>${idx+1}</td></tr>`;
+                }
+                html += `</tbody></table></div>`;
+            }
+            if(html === '<h3>Synthèse détaillée - ...</h3>') html = '<p>Aucune donnée pour cette période</p>';
+            document.getElementById('fullSynthResultArea').innerHTML = html;
+        }
+        
+        // Archives des rapports sous forme de tableau professionnel
+        function renderReportsArchive() {
+            let container = document.getElementById('reportsArchiveList');
+            if(!container) return;
+            if(reportsArchive.length === 0) { container.innerHTML = '<p>Aucun rapport archivé</p>'; return; }
+            let html = `<table class="report-table"><thead><tr><th>Date</th><th>Type</th><th>Titre</th><th>Actions</th></tr></thead><tbody>`;
+            for(let i=reportsArchive.length-1; i>=0; i--) {
+                let r = reportsArchive[i];
+                let dateStr = new Date(r.date).toLocaleString();
+                html += `<tr>
+                            <td>${dateStr}</td>
+                            <td>${r.type}</td>
+                            <td>${r.title}</td>
+                            <td>
+                                <button class="view-report-btn" data-idx="${i}" style="background:#4b6f8e; padding:4px 8px;">👁️ Voir</button>
+                                <button class="print-report-btn" data-idx="${i}" style="background:#2e7d32; padding:4px 8px;">🖨️ Imprimer</button>
+                                <button class="whatsapp-report-btn" data-idx="${i}" style="background:#25D366; padding:4px 8px;">📲 WhatsApp</button>
+                                <button class="delete-report-btn" data-idx="${i}" style="background:#c44c4c; padding:4px 8px;">🗑️</button>
+                            </td>
+                         </tr>`;
+            }
+            html += `</tbody></table>`;
+            container.innerHTML = html;
+            
+            // Événements
+            document.querySelectorAll('.view-report-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    let idx = btn.dataset.idx;
+                    let r = reportsArchive[idx];
+                    document.getElementById('receiptContent').innerHTML = `<div style="padding:20px;"><h3>${r.title}</h3><pre style="white-space:pre-wrap;">${r.content}</pre><button onclick="document.getElementById('receiptModal').style.display='none'" class="btn-secondary">Fermer</button></div>`;
+                    document.getElementById('receiptModal').style.display = 'flex';
+                });
+            });
+            document.querySelectorAll('.print-report-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    let idx = btn.dataset.idx;
+                    let r = reportsArchive[idx];
+                    printWithHeader(r.title, `<pre style="white-space:pre-wrap;">${r.content}</pre>`);
+                });
+            });
+            document.querySelectorAll('.whatsapp-report-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    let idx = btn.dataset.idx;
+                    let r = reportsArchive[idx];
+                    if(promoteurPhone) sendWhatsApp(promoteurPhone, `${r.title}\n\n${r.content}`);
+                    else alert("Veuillez enregistrer le numéro du promoteur");
+                });
+            });
+            document.querySelectorAll('.delete-report-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if(confirm("Supprimer ce rapport ?")) {
+                        reportsArchive.splice(btn.dataset.idx, 1);
+                        saveAll();
+                        renderReportsArchive();
+                    }
+                });
+            });
+        }
+        
+        // Génération du rapport journalier structuré
+        function generateDailyReport() {
+            let today = new Date().toISOString().slice(0,10);
+            let totalEleves = students.length;
+            // Compter les notes saisies aujourd'hui (basé sur la date de modification ? On n'a pas de timestamp. On compte toutes les notes pour l'exemple)
+            let totalNotes = grades.length;
+            let classesActives = [...new Set(grades.map(g => {
+                let s = students.find(st => st.id === g.studentId);
+                return s ? s.class : null;
+            }).filter(c => c))].join(", ");
+            let report = `📊 RAPPORT PÉDAGOGIQUE JOURNALIER - ${today}\n\n` +
+                         `🏫 ÉCOLE DE LA N'SELE\n` +
+                         `👨‍🎓 Effectif total des élèves : ${totalEleves}\n` +
+                         `📚 Nombre total de notes enregistrées : ${totalNotes}\n` +
+                         `📖 Classes actives : ${classesActives || "aucune"}\n` +
+                         `✅ Activités du jour : Saisie et validation des notes pédagogiques.\n` +
+                         `---\nGénéré automatiquement à 12h30.`;
+            let title = `Rapport journalier du ${today}`;
+            reportsArchive.push({ type: "Rapport journalier", date: new Date().toISOString(), title, content: report });
+            saveAll();
+            renderReportsArchive();
+            if(promoteurPhone) sendWhatsApp(promoteurPhone, `${title}\n\n${report}`);
+            return report;
+        }
+        
+        function archivePeriod(period) {
+            let periodNames = {
+                interro1: "1ère interrogation", interro2: "2ème interrogation", examen1: "Examen 1er trimestre",
+                interro3: "3ème interrogation", examen2: "Examen 2ème trimestre", examenFin: "Examen fin d'année"
+            };
+            let title = `Rapport ${periodNames[period]} - ${new Date().toLocaleDateString()}`;
+            let content = "";
+            for(let className of classList) {
+                let classStudents = students.filter(s => s.class === className);
+                if(classStudents.length === 0) continue;
+                content += `\n📚 ${className}\n`;
+                for(let s of classStudents) {
+                    let totalPoints = 0, totalCoef = 0;
+                    let details = [];
+                    for(let c of courses) {
+                        let g = grades.find(g => g.studentId === s.id && g.period === period && g.courseName === c.name);
+                        if(g && !isNaN(g.score)) {
+                            let ramenee = (g.score / g.max) * 20;
+                            totalPoints += ramenee * g.coef;
+                            totalCoef += g.coef;
+                            details.push(`${c.name}: ${g.score}/${g.max} (coef ${g.coef})`);
+                        } else {
+                            details.push(`${c.name}: non noté`);
+                        }
+                    }
+                    let moyenne = totalCoef>0 ? (totalPoints/totalCoef) : 0;
+                    content += `  - ${s.name}: ${moyenne.toFixed(2)}/20 (${details.join(", ")})\n`;
+                }
+            }
+            reportsArchive.push({ type: `Rapport de période (${periodNames[period]})`, date: new Date().toISOString(), title, content });
+            saveAll();
+            renderReportsArchive();
+            alert(`Période archivée !`);
+        }
+        
+        // Planification du rapport journalier à 12h30
+        function scheduleDailyReport() {
+            let now = new Date();
+            let target = new Date();
+            target.setHours(12, 30, 0, 0);
+            if(now > target) target.setDate(target.getDate() + 1);
+            let delay = target - now;
+            setTimeout(() => {
+                generateDailyReport();
+                scheduleDailyReport();
+            }, delay);
+        }
+        
+        // ==================== INITIALISATION ET ÉVÉNEMENTS ====================
+        function initEventListeners() {
+            // Saisie notes
+            document.getElementById('loadGradeTableBtn')?.addEventListener('click', () => {
+                let cls = document.getElementById('gradeClassSelect').value;
+                let period = document.getElementById('gradePeriodSelect').value;
+                if(!cls) { alert("Choisissez une classe"); return; }
+                currentLoadedClass = cls;
+                currentLoadedPeriod = period;
+                loadGradeTable(cls, period);
+            });
+            document.getElementById('validateGradesBtn')?.addEventListener('click', validateAllGrades);
+            
+            document.getElementById('addCourseBtn')?.addEventListener('click', () => {
+                let name = document.getElementById('newCourseName').value;
+                let max = parseFloat(document.getElementById('newCourseMax').value);
+                let coef = parseFloat(document.getElementById('newCourseCoef').value);
+                if(!name || isNaN(max) || isNaN(coef)) { alert("Nom, note max et coefficient requis"); return; }
+                courses.push({ name, max, coef });
+                saveAll();
+                renderCoursesList();
+                renderGradeTableIfLoaded();
+                document.getElementById('newCourseName').value = '';
+                document.getElementById('newCourseMax').value = '20';
+                document.getElementById('newCourseCoef').value = '1';
+            });
+            document.getElementById('archiveCurrentPeriodBtn')?.addEventListener('click', () => {
+                let period = document.getElementById('gradePeriodSelect').value;
+                if(!period) return;
+                archivePeriod(period);
+            });
+            
+            // Synthèse détaillée
+            document.getElementById('showFullSynthBtn')?.addEventListener('click', () => {
+                let period = document.getElementById('synthPeriodSelect').value;
+                renderFullSynthesis(period);
+            });
+            document.getElementById('printFullSynthBtn')?.addEventListener('click', () => {
+                printWithHeader('SYNTHÈSE DÉTAILLÉE DES NOTES', document.getElementById('fullSynthResultArea').innerHTML);
+            });
+            
+            // Résultats (simple)
+            document.getElementById('showResultsBtn')?.addEventListener('click', () => {
+                let cls = document.getElementById('resultClassSelect').value;
+                let period = document.getElementById('resultPeriodSelect').value;
+                if(!cls) { alert("Choisissez une classe"); return; }
+                let classStudents = students.filter(s => s.class === cls);
+                let results = [];
+                for(let s of classStudents) {
+                    let totalPoints=0, totalCoef=0;
+                    for(let c of courses) {
+                        let g = grades.find(g => g.studentId === s.id && g.period === period && g.courseName === c.name);
+                        if(g && !isNaN(g.score)) {
+                            let ramenee = (g.score / g.max) * 20;
+                            totalPoints += ramenee * g.coef;
+                            totalCoef += g.coef;
+                        }
+                    }
+                    let moyenne = totalCoef>0 ? (totalPoints/totalCoef) : 0;
+                    results.push({ name: s.name, moyenne, pct: (moyenne/20)*100 });
+                }
+                results.sort((a,b)=>b.moyenne - a.moyenne);
+                let html = `<h4>${cls} - ${period}</h4><table border="1"><thead><tr><th>Rang</th><th>Élève</th><th>Moyenne/20</th><th>%</th></tr></thead><tbody>`;
+                results.forEach((r,idx)=>html+=`<tr><td>${idx+1}</td><td>${r.name}</td><td>${r.moyenne.toFixed(2)}</td><td>${r.pct.toFixed(1)}%</td></tr>`);
+                html+=`</tbody></table>`;
+                document.getElementById('resultsDisplayArea').innerHTML = html;
+            });
+            document.getElementById('printResultsBtn')?.addEventListener('click', () => {
+                printWithHeader('RÉSULTATS', document.getElementById('resultsDisplayArea').innerHTML);
+            });
+            
+            // Archives rapports
+            document.getElementById('clearAllReportsBtn')?.addEventListener('click', () => {
+                if(confirm("Supprimer TOUS les rapports archivés ?")) {
+                    reportsArchive = [];
+                    saveAll();
+                    renderReportsArchive();
+                }
+            });
+            
+            // Gestion élèves
+            document.getElementById('printAllClassesBtn')?.addEventListener('click',()=>{ 
+                let allHtml = ''; 
+                for(let className of classList){ 
+                    let cs=students.filter(s=>s.class===className); 
+                    if(cs.length>0){ 
+                        allHtml += `<h3>📚 ${className} (${cs.length})</h3><table border="1"><thead><tr><th>N°</th><th>Nom</th><th>Option</th><th>Parent</th><th>Téléphone</th></tr></thead><tbody>${cs.map((s,idx)=>`<tr><td>${idx+1}</td><td>${s.name}</td><td>${s.option||'-'}</td><td>${s.parentName||'-'}</td><td>${s.parentPhone||'-'}</td></tr>`).join('')}</tbody></table>`; 
+                    } 
+                } 
+                printWithHeader('LISTE COMPLÈTE DES ÉLÈVES', `${allHtml}<p><strong>Total: ${students.length} élèves</strong></p>`); 
+            });
+            
+            window.openAddStudentModal = function() {
+                let modalHtml = `<div style="background:white; border-radius:24px; padding:20px;"><h3>➕ Inscrire un élève</h3><div class="grid-2"><div><label>Nom complet</label><input type="text" id="modalStudentName"><label>Classe</label><select id="modalStudentClass">${classList.map(c=>`<option>${c}</option>`).join('')}</select><label>Option</label><input type="text" id="modalStudentOption"></div><div><label>Téléphone Parent</label><input type="tel" id="modalParentPhone"><label>Nom parent</label><input type="text" id="modalParentName"><label>Adresse</label><input type="text" id="modalParentAddress"></div></div><div style="margin-top:20px; display:flex; gap:12px; justify-content:flex-end;"><button id="modalConfirmInscription" class="btn-success">Inscrire</button><button id="modalClose" class="btn-secondary">Annuler</button></div></div>`;
+                document.getElementById('receiptContent').innerHTML = modalHtml;
+                document.getElementById('receiptModal').style.display = 'flex';
+                document.getElementById('modalConfirmInscription').onclick = () => {
+                    let name = document.getElementById('modalStudentName').value;
+                    let cls = document.getElementById('modalStudentClass').value;
+                    if(!name || !cls) { alert("Nom et classe requis"); return; }
+                    students.push({ id: Date.now(), name, class: cls, option: document.getElementById('modalStudentOption').value, parentName: document.getElementById('modalParentName').value, parentPhone: document.getElementById('modalParentPhone').value, parentAddress: document.getElementById('modalParentAddress').value, photo: null });
+                    saveAll();
+                    renderAll();
+                    alert("Élève inscrit");
+                    document.getElementById('receiptModal').style.display = 'none';
+                };
+                document.getElementById('modalClose').onclick = () => { document.getElementById('receiptModal').style.display = 'none'; };
+            };
+            document.getElementById('openAddStudentModalBtn')?.addEventListener('click', openAddStudentModal);
+            
+            // Gestion personnel
+            document.getElementById('openAddStaffBtn')?.addEventListener('click',()=>{ document.getElementById('addStaffForm').style.display='grid'; });
+            document.getElementById('cancelStaffBtn')?.addEventListener('click',()=>{ document.getElementById('addStaffForm').style.display='none'; });
+            document.getElementById('saveStaffBtn')?.addEventListener('click',()=>{
+                let name = document.getElementById('staffName').value;
+                if(!name) return alert("Nom requis");
+                staffMembers.push({ id:Date.now(), name, category: document.getElementById('staffCategory').value, role: document.getElementById('staffRole').value, phone: document.getElementById('staffPhone').value, salary: parseFloat(document.getElementById('staffSalary').value)||0 });
+                saveAll();
+                renderStaffList();
+                document.getElementById('addStaffForm').style.display='none';
+                document.getElementById('staffName').value='';
+            });
+            
+            // Promoteur & rapports manuels
+            document.getElementById('savePromoteurBtn')?.addEventListener('click', () => {
+                let phone = document.getElementById('promoteurWhatsApp').value;
+                if(phone) { promoteurPhone = phone; saveAll(); alert("Numéro enregistré"); }
+            });
+            document.getElementById('manualDailyReportBtn')?.addEventListener('click', () => {
+                generateDailyReport();
+                alert("Rapport journalier envoyé et archivé");
+            });
+            document.getElementById('promoteurWhatsApp').value = promoteurPhone;
+        }
+        
+        function renderStaffList() {
+            let container = document.getElementById('staffListContainer');
+            if(!container) return;
+            if(staffMembers.length === 0) { container.innerHTML = '<p>Aucun personnel</p>'; return; }
+            let html = `<table border="1"><thead><tr><th>Catégorie</th><th>Nom</th><th>Fonction</th><th>Téléphone</th><th>Salaire</th><th>Actions</th></tr></thead><tbody>`;
+            staffMembers.forEach((s,idx) => {
+                html += `<tr><td>${s.category}</td><td>${s.name}</td><td>${s.role||'-'}</td><td>${s.phone||'-'}</td><td>${s.salary||0} USD</td><td><button class="delete-staff-btn" data-idx="${idx}" style="background:#c44c4c;">🗑️</button></td></tr>`;
+            });
+            html += `</tbody></table>`;
+            container.innerHTML = html;
+            document.querySelectorAll('.delete-staff-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    staffMembers.splice(btn.dataset.idx,1);
+                    saveAll();
+                    renderStaffList();
+                });
+            });
+        }
+        
+        function renderGroupedStudentList() {
+            let container = document.getElementById('groupedStudentList');
+            if(!container) return;
+            let html = '';
+            let total = 0;
+            for(let className of classList) {
+                let classStudents = students.filter(s => s.class === className);
+                if(classStudents.length === 0) continue;
+                total += classStudents.length;
+                html += `<div class="class-group"><div class="class-header">📚 ${className} (${classStudents.length})</div><table border="1"><thead><tr><th>Photo</th><th>Nom</th><th>Option</th><th>Parent</th><th>Téléphone</th><th>Actions</th></tr></thead><tbody>`;
+                classStudents.forEach(s => {
+                    let photoHtml = s.photo ? `<img src="${s.photo}" style="width:40px;height:40px;border-radius:50%;">` : '📷';
+                    html += `<tr><td>${photoHtml}</td><td>${s.name}</td><td>${s.option||'-'}</td><td>${s.parentName||'-'}</td><td>${s.parentPhone||'-'}</td><td><button class="edit-student" data-id="${s.id}">✏️</button> <button class="delete-student" data-id="${s.id}">🗑️</button></td></tr>`;
+                });
+                html += `</tbody></table></div>`;
+            }
+            container.innerHTML = html;
+            document.getElementById('totalGeneralEffectif').innerHTML = `<strong>Effectif total : ${total} élèves</strong>`;
+            document.querySelectorAll('.edit-student').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    let id = parseInt(btn.dataset.id);
+                    let s = students.find(s=>s.id===id);
+                    let newName = prompt("Nouveau nom", s.name);
+                    if(newName) { s.name = newName; saveAll(); renderGroupedStudentList(); renderClassSelectors(); }
+                });
+            });
+            document.querySelectorAll('.delete-student').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if(confirm("Supprimer ?")) {
+                        let id = parseInt(btn.dataset.id);
+                        students = students.filter(s=>s.id!==id);
+                        grades = grades.filter(g=>g.studentId!==id);
+                        saveAll();
+                        renderAll();
+                    }
+                });
+            });
+        }
+        
+        function initSubTabs(panelId) { 
+            document.querySelectorAll(`#${panelId} .sub-tab-btn`).forEach(btn => { 
+                btn.addEventListener('click', () => { 
+                    let targetId = btn.getAttribute('data-sub'); 
+                    btn.parentElement.querySelectorAll('.sub-tab-btn').forEach(b=>b.classList.remove('active')); 
+                    btn.classList.add('active'); 
+                    document.querySelectorAll(`#${panelId} .sub-panel`).forEach(sp=>sp.classList.remove('active-sub')); 
+                    document.getElementById(targetId)?.classList.add('active-sub'); 
+                }); 
+            }); 
+        }
+        initSubTabs('tab3Panel');
+        
+        // Splash screen
+        const splash = document.getElementById('splashScreen');
+        const app = document.getElementById('appContainer');
+        const enterBtn = document.getElementById('enterAppBtn');
+        const exitBtn = document.getElementById('exitAppBtn');
+        if(enterBtn) enterBtn.onclick = () => { showLoader(); setTimeout(() => { splash.style.opacity='0'; setTimeout(()=>{ splash.style.display='none'; app.style.display='block'; hideLoader(); },500); },800); };
+        if(exitBtn) exitBtn.onclick = () => { showLoader(); setTimeout(() => { app.style.display='none'; splash.style.display='flex'; splash.style.opacity='1'; hideLoader(); },800); };
+        
+        document.getElementById('connectionLed').className = 'led orange';
+        document.getElementById('connectionText').innerText = 'Mode local';
+        
+        // Données de démo
+        if(students.length === 0){
+            students.push({id:1001,name:"Mbuyi Alain",class:"1er Primaire",option:"",parentName:"Jean Mbuyi",parentPhone:"+24381111111",photo:null});
+            students.push({id:1002,name:"Kapinga Grace",class:"2e Primaire",option:"",parentName:"Marie Kapinga",parentPhone:"+24382222222",photo:null});
+            saveAll();
+        }
+        if(courses.length === 0){ courses.push({name:"Mathématiques",max:20,coef:2},{name:"Français",max:20,coef:1},{name:"Sciences",max:20,coef:1}); saveAll(); }
+        if(staffMembers.length === 0){ staffMembers.push({id:3001,name:"M. Pierre",category:"enseignant",role:"Maths",phone:"+24381111999",salary:300}); saveAll(); }
+        
+        renderAll();
+        initEventListeners();
+        scheduleDailyReport();
+        console.log("✅ Application pédagogique démarrée avec validation manuelle, synthèse détaillée, archives tableau et rapports automatiques");
+    </script>
+</body>
+</html>
